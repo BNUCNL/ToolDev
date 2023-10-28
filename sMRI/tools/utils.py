@@ -36,14 +36,20 @@ def indeces2mask(indeces,mask_shape):
         k=index[2]
         mask[i,j,k]=1
     return mask
-def get_surface_mask(a_cifti_file,volume_mask_dir:str,surface_dscalar_mask_path,surface_mask_path,use_threshold,mask_threshold):
+def get_surface_mask(a_cifti_file,volume_mask_dir:str,surface_dscalar_mask_path,surface_mask_path,use_threshold,mask_threshold,scalar_header):
     import nibabel as nib
+    
+    import numpy as np
+    import subprocess
     mask= nib.load(volume_mask_dir).get_fdata()
     if use_threshold=="yes":
         mask_indeces=np.argwhere(mask >= mask_threshold).tolist()
-    full_brain_surface_array=full_volume2surface(a_cifti_file, volume_mask_dir,surface_dscalar_mask_path,surface_mask_path,mask_indeces)
-    
-def full_volume2surface(a_cifti_file,input_path:str,dscalar_output_path:str,output_path:str,mask_indeces=None):
+    full_brain_surface_array=full_volume2surface(a_cifti_file, volume_mask_dir,surface_dscalar_mask_path,surface_mask_path,scalar_header,mask_indeces)
+    full_brain_surface_array[full_brain_surface_array>0.0]=1.0
+    nib.save(nib.Cifti2Image(full_brain_surface_array,scalar_header),surface_dscalar_mask_path)
+    string='wb_command -cifti-separate {} COLUMN -volume-all {}'.format(surface_dscalar_mask_path,surface_mask_path)
+    subprocess.run(string,shell=True)
+def full_volume2surface(a_cifti_file,input_path:str,dscalar_output_path:str,output_path:str,scalar_header,mask_indeces=None):
     """
     transform volume to surface data
     [91,109,91] to [1,91282]
@@ -82,7 +88,7 @@ def full_volume2surface(a_cifti_file,input_path:str,dscalar_output_path:str,outp
     
     volume=nib.load(input_path)
     volume_data=volume.get_fdata()
-    scalar_header=a_cifti_file.header
+    #scalar_header=a_cifti_file.header
     flag=1
     #scalar_header=CiftiReader(atlas_path).header
     for brain_structure in brain_structure_list:
@@ -104,9 +110,7 @@ def full_volume2surface(a_cifti_file,input_path:str,dscalar_output_path:str,outp
                 p=m_n_p[2]
                 surface_array[0,i]=volume_data[m,n,p]
         full_brain_surface_array=np.concatenate((full_brain_surface_array,surface_array),axis=1)
-    nib.save(nib.Cifti2Image(full_brain_surface_array,scalar_header),dscalar_output_path)
-    string='wb_command -cifti-separate {} COLUMN -volume-all {}'.format(dscalar_output_path,output_path)
-    subprocess.run(string,shell=True)
+    
     return full_brain_surface_array
 
 

@@ -1,0 +1,73 @@
+{
+    "dataset":"HCPYA",
+    "index":"t1wT2wRatio",
+    "fsl_mask_type":"CBGMstandard",
+    "results_dir":"result_dir",
+    "subject_dir":{
+        "HCPYA":"sub_dir/HCP/HCPYA/",
+        "HCP-Adult":"sub_dir/HCP-Adult/",
+        "HCP-D":"sub_dir/HCP-D/"
+    },
+    
+    "_data_dir":"dir of data",
+    "data_dir":
+        {
+            "HCPYA":"/nfs/z1/HCP/HCPYA/",
+            "HCP-Adult":"/nfs/m1/hcp/",
+            "HCP-D":"/nfs/e1/HCPD/fmriresults01/"
+        },
+
+    "_subject_file_name":"name of file with subject list",
+    "subject_file_name":
+        {
+            "HCPYA":"sub",
+            "HCP-Adult":"sub_adult",
+            "HCP-D":"sub_dev"
+        },
+        
+    "_raw_subject_file_path":"path of file with raw subject list ,some subjects don't have data ,pass them",
+    "raw_subject_file_path":
+        {
+            "HCPYA":"/nfs/z1/HCP/HCPYA/subject_id_MSMAll"
+        },
+
+    "atlas_dir":"atlas",
+    "atlas_file":{
+        "template_mni_2mm":"MNI152_T1_2mm_brain.nii.gz",
+        "cb_mask_mni_2mm":{"lxy":"Cerebellum-MNIfnirt-maxprob-thr25.nii","CBGMstandard":"CB_mask/T1w_seg1.nii"},
+        "surface_cb_mask_mni_2mm":{"lxy":{"nii_file":"Cerebellum-MNIfnirt-maxprob-thr25_{}_surface.nii",
+                                        "dscalar_nii_file":"Cerebellum-MNIfnirt-maxprob-thr25_{}_surface.dscalar.nii",
+                                        "surface_mask_indeces":"Cerebellum-MNIfnirt-maxprob-thr25_surface_mask_indeces.pkl",
+                                        "use_threshold":"yes"},
+                                "CBGMstandard":{"nii_file":"CB_mask/CBGM_MNI152_{}_surface.nii",
+                                                "dscalar_nii_file":"CB_mask/CBGM_MNI152_{}_surface.dscalar.nii",
+                                                "surface_mask_indeces":"CB_mask/{}_surface_mask_thr{}_indeces.pkl",
+                                                "use_threshold":"yes"}
+},
+        "dscalar_template_file":"cifti-2_test_data/ones.dscalar.nii",
+        "dtseries_template_file":"cifti-2_test_data/rfMRI_REST2_LR_Atlas_MSMAll_hp2000_clean.dtseries.nii"
+},
+
+    "resampled_file_name":{
+        "t1w_data":"T1w_restore_brain_2_{sub}.nii.gz",
+        "t2w_data":"T1w_restore_brain_2_{sub}.nii.gz"
+    },
+    "cerebellum_graymatter_mask":{
+        "fsl_mask":1,
+        "acapulco_adult":0,
+        "acapulco_pediatric":0
+    },
+    "_mask_threshold":"if use prob mask,if voxel/vertex 's prob > trhreshold , this vexel/vertex shoule be 1(true)",
+    "mask_threshold":0.2,
+    "_pca":"config of pca",
+    "_pca_source_data":"name_of_pca_data",
+    "pca_source_data":"{}_0{}_{}_sub{}_pca_source_data.npy",
+    "pca_feature":["t1wT2wRatio"],
+    "n_components":20,
+    "_main_component_dscalar_file_name":"features_variance_paiming_.dscalar.nii",
+    "main_component_dscalar_file_name":"{}_maps_{}_{:.5f}.dscalar.nii",
+    "softmax_main_component_dscalar_file_name":"softmax_{}_maps_{}_{:.5f}.dscalar.nii",
+    "softmax_main_component_file_name":"softmax_{}_maps_{}_{:.5f}.nii",
+    "main_component_file_name":"{}_maps_{}_{:.5f}.nii",
+    "sub_weight":"sub_weight.npy"
+}

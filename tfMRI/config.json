@@ -1,0 +1,10 @@
+{
+    "sub_names":["sub-04"],
+    "support_path":"./supportfiles",
+    "dataset_path":"/nfs/z1/userhome/ZhouMing/workingdir/BIN/data_upload/NOD",
+    "model_path":"/nfs/z1/userhome/ZhouMing/workingdir/hugging_face/model/",
+    "clean_code":"hp128_s4",
+    "normalize_metric":"trial",
+    "feature_targets":["CLIP-image", "CLIP-text"],
+    "roi_region":[1, 2, 3, 4, 5, 13, 14, 15, 16, 17, 18]
+}
