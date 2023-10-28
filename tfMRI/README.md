@@ -24,9 +24,13 @@ We integrate some useful tools/algorithms which are frequently carried out in ta
 Using stimulus visual and semantic features to predict brain response when viewing these images.
 
 Execute the code in the following order:
+
 encoding_stimuli_preparation.py -- prepare stimulus csv
+
 encoding_feature_extraction.py -- extract different features on the images
+
 encoding_brain_response_preparation.py -- prepare brain response on the images
+
 encoding_main.py -- use features and brain response to fit model
 
 ### Multi-voxel pattern analysis (MVPA)
