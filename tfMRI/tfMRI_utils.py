@@ -1,7 +1,8 @@
 import os
 import math
-from sympy import rotations
+import time
 import torch
+import cifti2
 import matplotlib
 import numpy as np
 import pandas as pd
@@ -9,10 +10,17 @@ import matplotlib as mpl
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from os.path import join as pjoin
+from scipy.stats import zscore
 from scipy.spatial import distance_matrix
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from dnnbrain.dnn.core import Activation
 from scipy import stats
+import nibabel as nib
+import scipy.io as sio
 
+from sklearn.linear_model import LinearRegression
+from sklearn.pipeline import make_pipeline
+from sklearn.model_selection import train_test_split
 from sklearn.model_selection import GridSearchCV, GroupKFold, KFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -36,7 +44,6 @@ def get_data(sub):
     main_path = '/nfs/z1/zhenlab/BrainImageNet/Analysis_results/'
     out_path = pjoin(main_path, 'cognitive_state_decoding', 'data')
     return np.load(pjoin(out_path,f'whole_brain/sub-{sub}_imagenet-dtseries.npy')), np.load(pjoin(out_path,f'whole_brain/sub-{sub}_imagenet-label.npy'))
-
 
 def plot_training_curve(n_epoch, train_acc, train_loss, val_acc, val_loss, flag):
     """
@@ -1078,3 +1085,211 @@ def train(model, train_set, val_set, batch_size, n_epoch, lr, weight_decay,
         
     return model.state_dict(), train_acc, train_loss, val_acc, val_loss
 
+def save2cifti(file_path, data, brain_models, map_names=None, volume=None, label_tables=None):
+    """
+    Save data as a cifti file
+    If you just want to simply save pure data without extra information,
+    you can just supply the first three parameters.
+    NOTE!!!!!!
+        The result is a Nifti2Image instead of Cifti2Image, when nibabel-2.2.1 is used.
+        Nibabel-2.3.0 can support for Cifti2Image indeed.
+        And the header will be regard as Nifti2Header when loading cifti file by nibabel earlier than 2.3.0.
+    Parameters:
+    ----------
+    file_path: str
+        the output filename
+    data: numpy array
+        An array with shape (maps, values), each row is a map.
+    brain_models: sequence of Cifti2BrainModel
+        Each brain model is a specification of a part of the data.
+        We can always get them from another cifti file header.
+    map_names: sequence of str
+        The sequence's indices correspond to data's row indices and label_tables.
+        And its elements are maps' names.
+    volume: Cifti2Volume
+        The volume contains some information about subcortical voxels,
+        such as volume dimensions and transformation matrix.
+        If your data doesn't contain any subcortical voxel, set the parameter as None.
+    label_tables: sequence of Cifti2LableTable
+        Cifti2LableTable is a mapper to map label number to Cifti2Label.
+        Cifti2Lable is a specification of the label, including rgba, label name and label number.
+        If your data is a label data, it would be useful.
+    """
+    if file_path.endswith('.dlabel.nii'):
+        assert label_tables is not None
+        idx_type0 = 'CIFTI_INDEX_TYPE_LABELS'
+    elif file_path.endswith('.dscalar.nii'):
+        idx_type0 = 'CIFTI_INDEX_TYPE_SCALARS'
+    elif file_path.endswith('.dtseries.nii'):
+        if len(data.shape) > 1:
+            brain_models.header.get_index_map(0).number_of_series_points = data.shape[0]
+        else:
+            brain_models.header.get_index_map(0).number_of_series_points = 1
+            data = data[np.newaxis, :]
+        nib.save(nib.Cifti2Image(data.astype(np.float32), brain_models.header), file_path)
+        return # jump out of function
+    else:
+        raise TypeError('Unsupported File Format')
+
+    if map_names is None:
+        map_names = [None] * data.shape[0]
+    else:
+        assert data.shape[0] == len(map_names), "Map_names are mismatched with the data"
+
+    if label_tables is None:
+        label_tables = [None] * data.shape[0]
+    else:
+        assert data.shape[0] == len(label_tables), "Label_tables are mismatched with the data"
+
+    # CIFTI_INDEX_TYPE_SCALARS always corresponds to Cifti2Image.header.get_index_map(0),
+    # and this index_map always contains some scalar information, such as named_maps.
+    # We can get label_table and map_name and metadata from named_map.
+    mat_idx_map0 = cifti2.Cifti2MatrixIndicesMap([0], idx_type0)
+    for mn, lbt in zip(map_names, label_tables):
+        named_map = cifti2.Cifti2NamedMap(mn, label_table=lbt)
+        mat_idx_map0.append(named_map)
+
+    # CIFTI_INDEX_TYPE_BRAIN_MODELS always corresponds to Cifti2Image.header.get_index_map(1),
+    # and this index_map always contains some brain_structure information, such as brain_models and volume.
+    mat_idx_map1 = cifti2.Cifti2MatrixIndicesMap([1], 'CIFTI_INDEX_TYPE_BRAIN_MODELS')
+    for bm in brain_models:
+        mat_idx_map1.append(bm)
+    if volume is not None:
+        mat_idx_map1.append(volume)
+
+    matrix = cifti2.Cifti2Matrix()
+    matrix.append(mat_idx_map0)
+    matrix.append(mat_idx_map1)
+    header = cifti2.Cifti2Header(matrix)
+    img = cifti2.Cifti2Image(data, header)
+    cifti2.save(img, file_path)
+
+def relu(M):
+    relu_M = np.zeros_like(M)
+    relu_M[M>0] = M[M>0]
+    return relu_M
+
+def roi_mask(roi_name, roi_all_names, roi_index):
+    """
+    Parameters:
+    ----------
+    roi_name : list or str
+    roi_all_names: list
+        all of the roi names in roilbl_mmp.csv
+    roi_index: ndarray
+        the correponding label of each ROI in 32k space
+    """
+    # start load name
+    select_index = []
+    if isinstance(roi_name, str):
+        roi_tmp_index = roi_all_names.loc[roi_all_names.isin([f'L_{roi_name}_ROI']).any(axis=1)].index[0]+1
+        select_index.extend([roi_tmp_index, roi_tmp_index+180])
+        mask = np.asarray([True if x in select_index else False for x in roi_index[0]])
+    else:
+        for name in roi_name:
+            roi_tmp_index = roi_all_names.loc[roi_all_names.isin([f'L_{name}_ROI']).any(axis=1)].index[0]+1
+            select_index.extend([roi_tmp_index, roi_tmp_index+180])
+        mask = np.asarray([True if x in select_index else False for x in roi_index[0]])
+    return mask
+
+def get_voxel_location(roi_region, support_path):
+    # load roi atlas info
+    # make sure that all belowing files are existed
+    roi_assign = pd.read_csv(pjoin(support_path, 'HCP-MMP1_visual-cortex1.csv'))
+    roi_name_path = pjoin(support_path, 'roilbl_mmp.csv')
+    roi_all_names = pd.read_csv(roi_name_path)
+    roi_index = sio.loadmat(pjoin(support_path, 'MMP_mpmLR32k.mat'))['glasser_MMP']
+
+    # define rois
+    roi_name = roi_assign.loc[roi_assign['ID_in_22Region'].isin(roi_region), 'area_name'].to_list()
+    mask = roi_mask(roi_name, roi_all_names, roi_index)
+
+    return mask
+
+def fit_encoding_model(features, brain_resp, visual_mask, feature_type, n_job=4):
+
+    # start computing time
+    t1 = time.time()
+    # split the dataset into train and test part
+    train_features, test_features, brain_train, brain_test = train_test_split( \
+        features, brain_resp, test_size=0.2, random_state=42)
+
+    # baseline linear model estimation 
+    lr = make_pipeline(StandardScaler(), LinearRegression(n_jobs=n_job))
+    lr.fit(train_features, brain_train[:, visual_mask])
+
+    # loop each voxel to compute correlation
+    # use inner product to compute correlation
+    predictions = lr.predict(test_features)
+    std_predictions = (predictions - predictions.mean(axis=0)) / predictions.std(axis=0)
+    std_brain_test = (brain_test[:, visual_mask] - brain_test[:, visual_mask].mean(axis=0)) / brain_test[:, visual_mask].std(axis=0)
+    # compute correlation
+    correlations = np.sum(std_predictions * std_brain_test, axis=0) / (std_predictions.shape[0] - 1)
+    lr_r = correlations.mean()
+    # report model fitting results
+    print(f'{feature_type}, r={lr_r}, tc{(time.time() - t1)}')
+    return correlations
+
+def save_encoding_results(results, visual_mask, sub_name, feature_type, out_path):
+    # save encoding model map
+    temp = nib.load(pjoin('./supportfiles', 'template.dtseries.nii'))
+    encoding_map = np.zeros((91282))
+    encoding_map[:59412][visual_mask] = results
+    # assert whether output path are existed
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+    encoding_path = pjoin(out_path, f'{sub_name}_encoding_{feature_type}.dtseries.nii')
+    save2cifti(file_path=encoding_path, data=encoding_map, brain_models=temp)
+
+def load_brain_response(sub_name, support_path, normalize_metric='run', clean_code='hp128_s4', runperses=10, trlperrun=100):
+
+    # define beta path
+    beta_sub_path = pjoin(support_path, f'{sub_name}_imagenet-beta_{clean_code}_filtered_ridge.npy')
+
+    if not os.path.exists(beta_sub_path):
+        raise ValueError('Please run NOD brain response preparation first!')
+    else:
+        # load beta
+        beta_sub = np.load(beta_sub_path)
+        # perform data normalization
+        if beta_sub.ndim != 2:
+            raise AssertionError('check data shape into (n-total-trail,n-brain-size)')
+        if normalize_metric == 'run':
+            nrun = beta_sub.shape[0] / trlperrun
+            for i in range(int(nrun)):
+                # run normalization is to demean the run effect 
+                beta_sub[i*trlperrun:(i+1)*trlperrun, :] = zscore(beta_sub[i*trlperrun:(i+1)*trlperrun,:], None)
+        elif normalize_metric =='session':
+            nrun = beta_sub.shape[0] / trlperrun
+            nses = nrun/runperses
+            for i in range(int(nses)):
+                beta_sub[i*trlperrun*runperses:(i+1)*trlperrun*runperses, :] = zscore(beta_sub[i*trlperrun*runperses:(i+1)*trlperrun*runperses, :], None)
+        elif normalize_metric=='trial':
+            beta_sub = zscore(beta_sub, axis=1)
+
+    return beta_sub
+
+
+def load_network_features(sub_name, feature_type, support_path):
+    # define feature path
+    feature_path = pjoin(support_path, 'sub_stim')
+    # load features based on different types
+    if 'conv' in feature_type or 'fc' in feature_type:
+        feature_file_path = pjoin(feature_path, f'{sub_name}_AlexNet.act.h5')
+        # load original features
+        features_org = Activation()
+        features_org.load(feature_file_path)
+        # iterate on layers
+        # different layer types have different loading metric
+        if 'conv' in feature_type:
+            features = np.sum(relu(features_org.get(feature_type)), axis=(2,3))
+        elif 'fc' in feature_type:
+            features = np.squeeze(relu(features_org.get(feature_type)))
+    else:
+        # get semantic embedding path
+        feature_path = pjoin(support_path, 'sub_stim', '%s_%s.npy'%(sub_name, feature_type))
+        if not os.path.exists(feature_path):
+            raise ValueError('Please generate %s feature first'%feature_type)
+        else:
+            features = np.load(feature_path)
+    return features

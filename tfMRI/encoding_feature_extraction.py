@@ -2,6 +2,7 @@ import os
 import math
 import torch
 import config
+import argparse
 from PIL import Image
 from tqdm import tqdm
 import numpy as np
@@ -166,11 +167,21 @@ def prepare_AlexNet_feature(sub_name):
 # change current path
 os.chdir(os.path.dirname(__file__))
 
+# Set up the argument parser
+parser = argparse.ArgumentParser(description='Model fitting for fMRI data.')
+parser.add_argument('--sub_name', type=str, nargs='+', default=['sub-04'], 
+                    help='Subject names', required=True)
+
+# Parse the arguments
+args = parser.parse_args()
+
 # parameters setting
-sub_names = config.sub_names
 support_path = config.support_path
 dataset_path = config.dataset_path
 model_path = config.model_path
+
+# parameters setting for user input
+sub_names = args.sub_name
 
 # loop to generate features
 for sub_name in sub_names:
