@@ -1,5 +1,6 @@
 import os
 import config
+import argparse
 import numpy as np
 import pandas as pd
 from os.path import join as pjoin
@@ -60,8 +61,18 @@ def prepare_stimlus_set(sub_names):
             f.writelines(header)
             f.writelines(stim_files)
 
+# Set up the argument parser
+parser = argparse.ArgumentParser(description='Model fitting for fMRI data.')
+parser.add_argument('--sub_name', type=str, nargs='+', default=['sub-04'], 
+                    help='Subject names', required=True)
+
+# Parse the arguments
+args = parser.parse_args()
+
+# parameters setting for user input
+sub_names = args.sub_name
+
 # parameters setting
-sub_names = config.sub_names
 support_path = config.support_path
 dataset_path = config.dataset_path
 
