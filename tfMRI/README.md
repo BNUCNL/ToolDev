@@ -1,84 +1,23 @@
-# Preprocessing and Analysis codes for task fMRI part
-## Preprocess procedure
-The MRI data were first converted into the Neuroimaging Informatics Technology Initiative (NIfTI) format and then organized into the Brain Imaging Data Structure (BIDS) using HeuDiConv (https://github.com/nipy/heudiconv). Then fMRIprep 20.2.1 were used to perform volume prepocess. Detailed information on fMRIprep pipelines can be found in the online documentation of the fMRIPrep(https://fmriprep.org). Then, all the preprocessed individual fMRI data were registered onto the 32k fsLR space using the Ciftify toolbox.
+# Preprocessing and Analysis Codes for Task fMRI
 
-### Volume-based process
-**code: ./volume_preprocess/volume_preprocess.sh**
+This repository contains preprocessing and analysis codes for task-based functional MRI (tfMRI) data. The structure of the repository is organized into several subdirectories, each dedicated to a specific aspect of data processing and analysis. Below is a description of each directory and its purpose.
 
-The data2bids.py helps you to reorganize the data structure to BIDS. You have to first prepare the scan_info.xlsx to fit for your experiment protocol and design. 
-fMRIprep were performed using docker and detailed usage notes are available in codes, please read carefully and modify variables to satisfy your customed environment.
+## Repository Structure
 
-### Surface-based process
-**code: ./surface_preprocess/surface_preprocess.sh**
+### 1. `preprocessing`
+This folder contains all the scripts needed for preprocessing tfMRI data. The preprocessing includes steps such as data organization into the BIDS format, motion correction, and alignment. It provides the foundation for subsequent analyses, ensuring data quality and consistency across subjects.
 
-The cifify_recon_all function was used to register and resample individual surfaces to 32k standard fsLR surfaces via surface-based alignment. The ciftfy_subject_fmri function was then used to project functional MRI data onto the fsLR surface. 
-In most circumstances the only necessary operation it to change the path to dataset, other optional settings are explained by annotations.
+### 2. `encoding`
+The `encoding` folder contains codes for constructing encoding models, which map stimulus features to brain activity. These models are typically used to predict brain activity in response to specific stimuli, allowing you to understand how the brain represents external information during the task.
 
-## Analysis tools
-We integrate some useful tools/algorithms which are frequently carried out in task fMRI analysis. 
+### 3. `decoding`
+The `decoding` folder provides codes for decoding models that infer stimulus characteristics or behavioral responses based on observed brain activity. Decoding is useful for understanding how much information about a specific variable is present in the brain's activity patterns.
 
-### Encoding model
+### 4. `prf`
+The `prf` folder contains scripts for population receptive field (pRF) analysis. pRF analysis is typically used to determine the visual field properties of neurons based on tfMRI data, which can be particularly useful in mapping retinotopic areas in visual cortex regions.
 
-**code: ./Encoding.py**
+### 5. `quality_validation`
+The `quality_validation` folder includes scripts for validating data quality. This is an essential step to ensure that the preprocessing procedures yield reliable data. The scripts perform quality checks such as motion inspection, signal-to-noise ratio (SNR) assessment, and identification of outliers.
 
-Using stimulus visual and semantic features to predict brain response when viewing these images.
-
-Execute the code in the following order:
-
-encoding_stimuli_preparation.py -- prepare stimulus csv
-
-encoding_feature_extraction.py -- extract different features on the images
-
-encoding_brain_response_preparation.py -- prepare brain response on the images
-
-encoding_main.py -- use features and brain response to fit model
-
-### Multi-voxel pattern analysis (MVPA)
-
-**code: ./MVPA.py**
-
-MVPA is considered as a supervised classification problem where a classifier attempts to capture the relationships between spatial pattern of fMRI activity and experimental conditions. (Mahmoudi et al., 2012).
-
-### Representation similarity analysis (RSA)
-
-**code: ./RSA.py**
-
-A representational similarity analysis (RSA) was conducted to validate that multi-voxel activity patterns from the data represent a rich semantic structure of experimental conditions. 
-
-Specifically, the representational dissimilarity matrix (RDM) of the experimental conditions was constructed by computing the Pearson correlation between the multi-voxel activity patterns from each conditions. 
-
-### Representation dimension reduction
-
-**code: ./RDR.py**
-
-Representation dimension reduction was implemented to reduce the high dimensional voxel space into the low dimensional representation space. In this process, several gradients map were usually observed to inspect the functional organization of the cerebral cortex.
-
-
-### Inter-subject correlation(ISC)
-
-**code: ./ISC.py**
-
-An inter-subject correlation (ISC) analysis was performed to validate that the data can reveal consistent action category-selective response profiles across participants. 
-
-Here, the ISC is measured for each participant by calculating the Pearson correlation between her/his category-specific response profiles (i.e., beta series) with the averaged category-specific response profiles from the remaining n-1 participants.
-
-### Contrast-to-noise ratio (CNR)
-
-**code: ./CNR.py**
-
-A contrast-to-noise ratio (CNR) analysis was performed to check if the stimulus can induce desired signal changes in each vertex across the cortical surface. 
-
-The CNR was calculated as the averaged beta values across all stimuli divided by the temporal standard deviation of the residual time series from GLM models. 
-
-## Utils
-
-### Input and output 
-
-**code: ./io.py**
-
-We prepare several input and output function to transform neuroimaging files into matrix for further modeling. 
-
-
-## Reference
-
-
+### 6. `rsa`
+The `rsa` (Representational Similarity Analysis) folder contains scripts to perform representational similarity analysis. RSA is used to compare the similarity structure of neural patterns with behavioral or theoretical models, providing insights into how information is represented in different regions of the brain.
